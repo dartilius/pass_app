@@ -5,12 +5,11 @@ from django.conf import settings
 
 
 class TelegramService:
-    def __init__(self, token, chat_id):
+    def __init__(self, token):
         self.url = f"https://api.telegram.org/bot{token}/sendMessage"
-        self.chat_id = chat_id
         self.token = token
 
-    def send_worker_message(self, client_name, pass_id):
+    def send_worker_message(self, client_name, pass_id, chat_id):
         text = f"К вам пришёл {client_name}. Выдать доступ?"
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         keyboard = {
@@ -21,7 +20,7 @@ class TelegramService:
                 ]
             ]
         }
-        params = {"chat_id": self.chat_id, "text": text, "reply_markup": json.dumps(keyboard)}
+        params = {"chat_id": chat_id, "text": text, "reply_markup": json.dumps(keyboard)}
         requests.get(url, params=params)
 
-telegram_message = TelegramService(settings.BOT_TOKEN, settings.CHAT_ID)
+telegram_message = TelegramService(settings.BOT_TOKEN)
