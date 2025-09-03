@@ -5,6 +5,21 @@ from django.dispatch import receiver
 from app.telegram import telegram_message
 
 
+class Worker(models.Model):
+    """Модель сотрудника."""
+
+    name = models.CharField(
+        verbose_name="ФИО сотрудника",
+        max_length=150,
+    )
+    chat_id = models.IntegerField(
+        verbose_name="ID чата в тг"
+    )
+
+    def __str__(self):
+        return self.name
+
+
 class Pass(models.Model):
     """Модель заявки на пропуск."""
 
@@ -13,7 +28,7 @@ class Pass(models.Model):
         max_length=150,
     )
     worker = models.ForeignKey(
-        User,
+        Worker,
         verbose_name="Сотрудник",
         on_delete=models.CASCADE,
     )
@@ -32,4 +47,8 @@ class Pass(models.Model):
 @receiver(models.signals.post_save, sender=Pass)
 def notify_worker(sender, instance, created, *args, **kwargs):
     if created:
-        telegram_message.send_worker_message(instance.name, instance.id)
+        telegram_message.send_worker_message(
+            instance.name,
+            instance.id,
+            instance.worker.chat_id
+        )

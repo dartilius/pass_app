@@ -1,7 +1,5 @@
-from django.contrib.auth.models import User
-from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.status import (
@@ -9,25 +7,24 @@ from rest_framework.status import (
     HTTP_200_OK, HTTP_201_CREATED
 )
 
-from app.models import Pass
+from app.models import Pass, Worker
 from app.serializers import PassSerializer
 
 
 class APIViewSet(viewsets.GenericViewSet):
-    """."""
+    """API."""
 
     queryset = Pass.objects.all()
     serializer_class = PassSerializer
 
     @action(detail=False, methods=['GET'])
     def get_users(self, request):
-        users = User.objects.filter(first_name__isnull=False)
+        users = Worker.objects.all()
         data = list()
         for user in users:
-            user_name = user.get_full_name()
             data.append({
                 "id": user.pk,
-                "full_name": user_name,
+                "full_name": user.name,
             })
         return Response(data)
 
@@ -38,13 +35,13 @@ class APIViewSet(viewsets.GenericViewSet):
         try:
             name = serializer.data.get("name")
             worker_id = serializer.data.get("worker")
-            worker = User.objects.get(id=worker_id)
+            worker = Worker.objects.get(id=worker_id)
             _pass = Pass.objects.create(
                 name=name,
                 worker=worker
             )
             return Response(data={"id": _pass.pk}, status=HTTP_201_CREATED)
-        except User.DoesNotExist:
+        except Worker.DoesNotExist:
             return Response(
                 data={"detail": "Сотрудника с таким id нет в базе"},
                 status=HTTP_400_BAD_REQUEST,
