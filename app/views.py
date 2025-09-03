@@ -6,44 +6,50 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.status import (
     HTTP_400_BAD_REQUEST,
-    HTTP_200_OK
+    HTTP_200_OK, HTTP_201_CREATED
 )
 
 from app.models import Pass
+from app.serializers import PassSerializer
 
 
 class APIViewSet(viewsets.GenericViewSet):
     """."""
 
     queryset = Pass.objects.all()
+    serializer_class = PassSerializer
 
     @action(detail=False, methods=['GET'])
     def get_users(self, request):
-        users = User.objects.all()
-        data = dict()
+        users = User.objects.filter(first_name__isnull=False)
+        data = list()
         for user in users:
-            data.update({
+            user_name = user.get_full_name()
+            data.append({
                 "id": user.pk,
-                "full_name": user.get_full_name(),
+                "full_name": user_name,
             })
-        return data
+        return Response(data)
 
     @action(detail=False, methods=['POST'])
     def create_pass(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            name = request.data.get("name")
-            worker = get_object_or_404(User, id=request.data.get("id"))
-            self.queryset.create(
+            name = serializer.data.get("name")
+            worker_id = serializer.data.get("worker")
+            worker = User.objects.get(id=worker_id)
+            _pass = Pass.objects.create(
                 name=name,
                 worker=worker
             )
-            return Response(status=HTTP_200_OK)
-        except Http404:
-            Response(
+            return Response(data={"id": _pass.pk}, status=HTTP_201_CREATED)
+        except User.DoesNotExist:
+            return Response(
                 data={"detail": "Сотрудника с таким id нет в базе"},
                 status=HTTP_400_BAD_REQUEST,
             )
-        except Exception:
+        except Exception as e:
             return Response(
                 data={"detail": "Ошибка при создании заявки, попробуйте ещё раз"},
                 status=HTTP_400_BAD_REQUEST,
@@ -51,21 +57,31 @@ class APIViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['GET'])
     def check_passes(self, request):
-        passes = self.queryset.filter(is_approved=True, is_confirmed=None)
+        passes = Pass.objects.filter(is_approved=True, is_validated=None)
         if passes:
-            return [{"name": _pass.client_name, "id": _pass.pk} for _pass in passes]
+            return Response([{"name": _pass.name, "id": _pass.pk} for _pass in passes])
         else:
-            return None
+            return Response({})
 
     @action(detail=False, methods=['GET'])
-    def check_pass_status(self, request):
-        _pass = self.queryset.filter(id=request.GET.get("id")).first()
+    def check_worker_approval(self, request):
+        _pass = Pass.objects.filter(id=request.GET.get("id")).first()
         if _pass.is_approved is True:
-            return Response(data={"status": "OK"}, status=HTTP_200_OK)
+            return Response(status=HTTP_201_CREATED)
         elif _pass.is_approved is False:
-            return Response(data={"status": "FAIL"}, status=HTTP_200_OK)
+            return Response(status=HTTP_400_BAD_REQUEST)
         else:
-            return Response(data={"status": "WAIT"}, status=HTTP_200_OK)
+            return Response(status=HTTP_200_OK)
+
+    @action(detail=False, methods=['GET'])
+    def check_security_approval(self, request):
+        _pass = Pass.objects.filter(id=request.GET.get("id")).first()
+        if _pass.is_validated is True:
+            return Response(status=HTTP_201_CREATED)
+        elif _pass.is_validated is False:
+            return Response(status=HTTP_400_BAD_REQUEST)
+        else:
+            return Response(status=HTTP_200_OK)
 
     @action(detail=False, methods=['POST'])
     def choice_yes(self, request):
@@ -75,7 +91,7 @@ class APIViewSet(viewsets.GenericViewSet):
                 data={'detail: Не указан айди пропуска'},
                 status=HTTP_400_BAD_REQUEST
             )
-        _pass = get_object_or_404(self.queryset, id=pass_id)
+        _pass = get_object_or_404(Pass, id=pass_id)
         _pass.is_validated = True
         _pass.save(update_fields=['is_validated'])
         return Response(status=HTTP_200_OK)
@@ -88,7 +104,33 @@ class APIViewSet(viewsets.GenericViewSet):
                 data={'detail: Не указан айди пропуска'},
                 status=HTTP_400_BAD_REQUEST
             )
-        _pass = get_object_or_404(self.queryset, id=pass_id)
+        _pass = get_object_or_404(Pass, id=pass_id)
         _pass.is_validated = False
         _pass.save(update_fields=['is_validated'])
+        return Response(status=HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'])
+    def approve(self, request):
+        pass_id = request.data.get('id')
+        if not pass_id:
+            return Response(
+                data={'detail: Не указан айди пропуска'},
+                status=HTTP_400_BAD_REQUEST
+            )
+        _pass = get_object_or_404(Pass, id=pass_id)
+        _pass.is_approved = True
+        _pass.save(update_fields=['is_approved'])
+        return Response(status=HTTP_200_OK)
+
+    @action(detail=False, methods=['POST'])
+    def decline(self, request):
+        pass_id = request.data.get('id')
+        if not pass_id:
+            return Response(
+                data={'detail: Не указан айди пропуска'},
+                status=HTTP_400_BAD_REQUEST
+            )
+        _pass = get_object_or_404(Pass, id=pass_id)
+        _pass.is_approved = False
+        _pass.save(update_fields=['is_approved'])
         return Response(status=HTTP_200_OK)
