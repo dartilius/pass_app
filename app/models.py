@@ -2,11 +2,13 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.dispatch import receiver
 
+from app.telegram import telegram_message
+
 
 class Pass(models.Model):
     """Модель заявки на пропуск."""
 
-    client_name = models.CharField(
+    name = models.CharField(
         verbose_name="ФИО гостя",
         max_length=150,
     )
@@ -27,10 +29,7 @@ class Pass(models.Model):
     )
 
 
-
-
 @receiver(models.signals.post_save, sender=Pass)
 def notify_worker(sender, instance, created, *args, **kwargs):
     if created:
-        # send telegram message
-        ...
+        telegram_message.send_worker_message(instance.name, instance.id)
